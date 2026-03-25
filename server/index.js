@@ -2,100 +2,135 @@ const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
 const path = require("path");
-const { OpenAI } = require("openai");
+const Sentiment = require("sentiment");
+const multer = require("multer");
+const csv = require("csv-parser");
+const { Readable } = require("stream");
 
 dotenv.config();
 
 const app = express();
+const sentiment = new Sentiment();
+
+// Configure multer for memory storage
+const upload = multer({ storage: multer.memoryStorage() });
 
 // Security middleware
-app.use(express.json({ limit: '1mb' })); // Limit payload size
-app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+app.use(express.json({ limit: '5mb' }));
+app.use(express.urlencoded({ extended: true, limit: '5mb' }));
 
 // CORS configuration for production
 const corsOptions = {
   origin: process.env.NODE_ENV === 'production' 
-    ? [process.env.FRONTEND_URL, 'https://yourdomain.com'] // Add your domain
+    ? [process.env.FRONTEND_URL, 'https://yourdomain.com'] 
     : 'http://localhost:3000',
   credentials: true,
   optionsSuccessStatus: 200
 };
 app.use(cors(corsOptions));
 
-// Serve static files from React build in production
+// Serve React app in production
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../client/build')));
 }
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
 
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
-app.post("/analyze", async (req, res) => {
+// Single text analysis endpoint
+app.post("/analyze", (req, res) => {
   const { text } = req.body;
 
-  // Input validation
   if (!text || typeof text !== 'string') {
     return res.status(400).json({ error: "Text is required and must be a string" });
   }
 
-  if (text.length > 1000) {
-    return res.status(400).json({ error: "Text is too long. Maximum 1000 characters allowed." });
+  if (text.length > 5000) {
+    return res.status(400).json({ error: "Text is too long. Maximum 5000 characters allowed." });
   }
 
   try {
-    console.log("Analyzing text:", text.substring(0, 100) + (text.length > 100 ? '...' : ''));
+    const result = sentiment.analyze(text);
     
-    if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === "your_openai_api_key_here") {
-      // Return mock response for testing
-      console.log("No API key found, returning mock response");
-      const mockResponses = [
-        "Sentiment: Positive, Confidence: 85%, Explanation: This text expresses joy and satisfaction.",
-        "Sentiment: Negative, Confidence: 78%, Explanation: This text shows frustration or disappointment.",
-        "Sentiment: Neutral, Confidence: 65%, Explanation: This text appears to be factual without strong emotional content."
-      ];
-      const randomResponse = mockResponses[Math.floor(Math.random() * mockResponses.length)];
-      return res.json({ result: randomResponse });
-    }
+    // Format the response to match the previous OpenAI format for the frontend
+    let sentimentLabel = "Neutral";
+    if (result.score > 0) sentimentLabel = "Positive";
+    if (result.score < 0) sentimentLabel = "Negative";
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        {
-          role: "user",
-          content: `Analyze the sentiment of this text: "${text}". Respond with: Sentiment (Positive/Negative/Neutral), Confidence, and a short explanation.`,
-        },
-      ],
-      max_tokens: 150,
-      temperature: 0.3,
-    });
+    // Calculate a pseudo-confidence based on comparative (word intensity)
+    const confidence = Math.min(100, Math.max(50, 50 + Math.abs(result.comparative) * 50));
     
-    console.log("OpenAI response received");
-    const result = completion.choices[0].message.content;
-    res.json({ result });
+    const explanation = `Analyzed ${result.tokens.length} words. Found ${result.positive.length} positive words and ${result.negative.length} negative words.`;
+
+    const formattedResult = `Sentiment: ${sentimentLabel}, Confidence: ${confidence.toFixed(1)}%, Explanation: ${explanation}`;
+
+    res.json({ result: formattedResult });
   } catch (error) {
-    console.error("Error in /analyze endpoint:", error);
-    
-    if (error.message.includes("API key")) {
-      res.status(500).json({ error: "OpenAI API key is missing or invalid" });
-    } else if (error.code === "ENOTFOUND" || error.code === "ECONNREFUSED") {
-      res.status(500).json({ error: "Cannot connect to OpenAI API. Check your internet connection." });
-    } else if (error.status === 401) {
-      res.status(500).json({ error: "OpenAI API key is invalid or expired" });
-    } else if (error.status === 429) {
-      res.status(500).json({ error: "OpenAI API rate limit exceeded. Please try again later." });
-    } else {
-      res.status(500).json({ error: `OpenAI API error: ${error.message}` });
-    }
+    console.error("Error in /analyze:", error);
+    res.status(500).json({ error: "Failed to analyze sentiment" });
   }
 });
 
-// Serve React app for all other routes in production
+// Batch CSV analysis endpoint
+app.post("/analyze/batch", upload.single("file"), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: "No CSV file uploaded." });
+  }
+
+  const results = [];
+  let summary = { Positive: 0, Negative: 0, Neutral: 0 };
+
+  try {
+    // Create a readable stream from the uploaded buffer
+    const stream = Readable.from(req.file.buffer.toString('utf-8'));
+
+    stream
+      .pipe(csv())
+      .on("data", (row) => {
+        // Assume the CSV has a column named "text" or "review"
+        const textToAnalyze = row.text || row.review || row.content || row.Message || Object.values(row)[0];
+        
+        if (textToAnalyze) {
+          const analysis = sentiment.analyze(textToAnalyze);
+          
+          let sentimentLabel = "Neutral";
+          if (analysis.score > 0) {
+            sentimentLabel = "Positive";
+            summary.Positive++;
+          } else if (analysis.score < 0) {
+            sentimentLabel = "Negative";
+            summary.Negative++;
+          } else {
+            summary.Neutral++;
+          }
+
+          results.push({
+            text: textToAnalyze.substring(0, 100) + (textToAnalyze.length > 100 ? "..." : ""),
+            sentiment: sentimentLabel,
+            score: analysis.score
+          });
+        }
+      })
+      .on("end", () => {
+        res.json({
+          summary,
+          details: results
+        });
+      })
+      .on("error", (error) => {
+        console.error("CSV Parsing Error:", error);
+        res.status(500).json({ error: "Failed to parse CSV file." });
+      });
+
+  } catch (error) {
+    console.error("Batch processing error:", error);
+    res.status(500).json({ error: "Internal server error during batch processing." });
+  }
+});
+
+// Production catch-all
 if (process.env.NODE_ENV === 'production') {
   app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, '../client/build', 'index.html'));
