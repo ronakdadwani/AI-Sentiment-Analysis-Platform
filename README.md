@@ -1,137 +1,80 @@
-# 🧠 Sentiment Analysis Tool
-
-An AI-powered full-stack web application for real-time sentiment detection using OpenAI's GPT-4 model. Built with **React.js**, **Node.js**, and **Express**, it classifies text as **Positive**, **Negative**, or **Neutral** with a confidence score and brief explanation.
-
----
-## 🚀 Demo
-🖥️ Live Link: _[Coming Soon]_  
-📸 Preview Screenshot:
-
----
-## 📦 Features
-
-- 🎯 Real-time sentiment detection
-- 🤖 Powered by OpenAI GPT-4 (via API)
-- 🧾 Explanation & confidence percentage
-- 🔄 Responsive and clean UI
-- 🔐 Secure backend with `.env` protection
-- ⚙️ Ready for CSV upload & analytics features (Phase 2)
+<div align="center">
+  <h1>✨ AI Sentiment Analysis Platform</h1>
+  <p>A full-stack, AI-powered NLP orchestration system processing bulk CSV datasets and real-time text.</p>
+  
+  ![React](https://img.shields.io/badge/react-%2320232a.svg?style=for-the-badge&logo=react&logoColor=%2361DAFB)
+  ![Node.js](https://img.shields.io/badge/node.js-6DA55F?style=for-the-badge&logo=node.js&logoColor=white)
+  ![Express.js](https://img.shields.io/badge/express.js-%23404d59.svg?style=for-the-badge&logo=express&logoColor=%2361DAFB)
+  ![TailwindCSS](https://img.shields.io/badge/tailwindcss-%2338B2AC.svg?style=for-the-badge&logo=tailwind-css&logoColor=white)
+</div>
 
 ---
 
-## 🛠️ Tech Stack
+## 🚀 Overview
 
-| Layer      | Tech                        |
-|------------|-----------------------------|
-| Frontend   | React.js, Axios, CSS        |
-| Backend    | Node.js, Express.js         |
-| AI Service | OpenAI GPT-4 API            |
-| Deployment | Vercel (Frontend), Render (Backend) |
+The **AI Sentiment Analysis Platform** is a modern web application designed for analyzing the emotional tone of both single text inputs and massive bulk CSV datasets (like customer reviews and support tickets). 
 
----
+It features a premium, glassmorphic UI built in React with interactive data visualization dashboards powered by Recharts, connected to a robust Node.js backend handling heavy Natural Language Processing (NLP) workloads.
 
-## 📁 Project Structure
+## 💎 Key Features
 
-```
-sentiment-analyzer/
-├── client/                 # React frontend
-│   ├── src/
-│   ├── public/
-│   └── package.json
-├── server/                 # Node.js backend
-│   ├── index.js
-│   └── package.json
-├── DEPLOYMENT.md          # Deployment guide
-├── vercel.json            # Vercel configuration
-└── Procfile              # Heroku configuration
-```
+- **Real-Time Text Interface:** Instantly analyze single paragraphs or user input.
+- **Batch CSV Processing:** Upload large CSV files spanning thousands of rows. The streaming pipeline parses, scores, and aggregates sentiment data with high performance.
+- **Interactive Visualizations:** View aggregated positive, negative, and neutral metrics in beautiful, interactive charts.
+- **Premium Glassmorphic Design:** An award-winning, Apple-like polished UI featuring sleek animations, a dark color palette, and a highly responsive design.
+
+## 🛠 Tech Stack
+
+- **Frontend:** React.js, Tailwind CSS, Recharts (for data visualization), Lucide-React (icons).
+- **Backend:** Node.js, Express.js, `sentiment` (NLP processing), Multer (memory storage for uploads), `csv-parser` (for streaming CSVs).
 
 ---
 
-## ⚙️ Installation
+## 💻 Getting Started
 
-### 1. Clone the repo
+Follow these steps to run the application locally.
+
+### 1. Clone the repository
 ```bash
 git clone https://github.com/your-username/sentiment-analysis-tool.git
 cd sentiment-analysis-tool
 ```
 
-### 2. Setup Backend
+### 2. Setup the Backend (Server)
 ```bash
 cd server
 npm install
-# Add your OpenAI key in a .env file
-echo "OPENAI_API_KEY=your-key-here" > .env
-npm run dev
+
+# Copy the example environment variables file
+cp env.example .env
+
+# Start the Node.js server (Runs on port 5000)
+npm run dev 
+# or use: node index.js
 ```
 
-### 3. Setup Frontend
+### 3. Setup the Frontend (Client)
+Open a new terminal window:
 ```bash
-cd ../client
+cd client
 npm install
+
+# Start the React development environment (Runs on port 3000)
 npm start
 ```
 
-## 🚀 Production Deployment
-
-### Quick Deploy Options:
-
-1. **Vercel (Recommended)**: 
-   - Install Vercel CLI: `npm i -g vercel`
-   - Run: `vercel` in project root
-   - Follow prompts and set environment variables
-
-2. **Heroku**:
-   - Install Heroku CLI
-   - Run: `heroku create your-app-name`
-   - Set environment variables in Heroku dashboard
-   - Deploy: `git push heroku main`
-
-3. **Railway**:
-   - Connect GitHub repository
-   - Set environment variables in dashboard
-   - Automatic deployment on push
-
-### Environment Variables Required:
-- `OPENAI_API_KEY`: Your OpenAI API key
-- `NODE_ENV`: Set to "production"
-- `FRONTEND_URL`: Your frontend domain (for CORS)
-
-For detailed deployment instructions, see [DEPLOYMENT.md](./DEPLOYMENT.md)
+### 4. Visit the Application
+Once both servers are running, visit `http://localhost:3000` in your browser.
 
 ---
 
-## ✨ Upcoming Features (Phase 2+)
-- 📤 Upload CSV file for batch sentiment analysis
-- 📊 Interactive data visualization (charts)
-- 😃 Emotion detection (happy, angry, sad, etc.)
-- 📄 Export analysis to PDF report
-- 🔐 User authentication (optional)
+## 📦 Deployment
+
+The application is fully containerized and easy to deploy:
+- **Frontend** can be deployed directly to Vercel or Netlify.
+- **Backend API** can be deployed to Render, Railway, or Heroku. 
+*(Ensure cross-origin resource sharing (CORS) is configured for production in the `.env` file!)*
 
 ---
 
-## 🔧 Development
-
-### Available Scripts
-
-**Backend:**
-- `npm run dev`: Start development server with nodemon
-- `npm start`: Start production server
-- `npm run prod`: Start with production environment
-
-**Frontend:**
-- `npm start`: Start development server
-- `npm run build`: Build for production
-- `npm test`: Run tests
-
-### API Endpoints
-
-- `POST /analyze`: Analyze sentiment of provided text
-- `GET /health`: Health check endpoint
-
----
-
-## 📝 License
-
-This project is licensed under the ISC License.
-
+<p align="center">Made with ❤️ by Ronak Dadwani</p>
