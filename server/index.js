@@ -3,6 +3,7 @@ const cors = require("cors");
 const dotenv = require("dotenv");
 const path = require("path");
 const Sentiment = require("sentiment");
+const sentiment = new Sentiment();
 const multer = require("multer");
 const csv = require("csv-parser");
 const { Readable } = require("stream");
@@ -10,123 +11,87 @@ const { Readable } = require("stream");
 dotenv.config();
 
 const app = express();
-const sentiment = new Sentiment();
+const { OpenAI } = require("openai");
 
-// Configure multer for memory storage
-const upload = multer({ storage: multer.memoryStorage() });
-
-// Security middleware
-app.use(express.json({ limit: '5mb' }));
-app.use(express.urlencoded({ extended: true, limit: '5mb' }));
-
-// CORS configuration for production
-const corsOptions = {
-  origin: process.env.NODE_ENV === 'production' 
-    ? [process.env.FRONTEND_URL, /\.vercel\.app$/] 
-    : 'http://localhost:3000',
-  credentials: true,
-  optionsSuccessStatus: 200
-};
-app.use(cors(corsOptions));
-
-// Serve React app in production
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../client/build')));
-}
-
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({ status: 'OK', timestamp: new Date().toISOString() });
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
-// Single text analysis endpoint
-app.post("/analyze", (req, res) => {
+const ANALYSIS_PROMPT = `You are a production-grade Sentiment Analysis Engine with built-in validation and testing capabilities.
+
+Your task is to:
+1. Analyze the sentiment of the given text
+2. Validate your own output for correctness and consistency
+3. Handle edge cases, sarcasm, and mixed sentiments
+4. Ensure strict JSON output formatting
+
+Return the following structure:
+{
+  "sentiment_label": "Positive" | "Negative" | "Neutral" | "Mixed",
+  "sentiment_score": float,
+  "emotions": ["joy", "anger", ...],
+  "confidence": percentage,
+  "key_phrases": ["phrase1", "phrase2"],
+  "detected_issues": ["issue1", ...],
+  "validation": {
+    "is_json_valid": true,
+    "is_consistent": true,
+    "edge_case_detected": false
+  },
+  "explanation": "concise reasoning"
+}
+
+Strict Rules:
+- Always return valid JSON (no extra text)
+- Ensure sentiment_score aligns with sentiment_label:
+    Positive → (0.2 to 1)
+    Negative → (-1 to -0.2)
+    Neutral → (-0.2 to 0.2)
+- Do not hallucinate information not present in the text.`;
+
+// Single text analysis endpoint (Pro-grade Upgrade)
+app.post("/analyze", async (req, res) => {
   const { text } = req.body;
 
   if (!text || typeof text !== 'string') {
     return res.status(400).json({ error: "Text is required and must be a string" });
   }
 
-  if (text.length > 5000) {
-    return res.status(400).json({ error: "Text is too long. Maximum 5000 characters allowed." });
-  }
-
   try {
-    const result = sentiment.analyze(text);
-    
-    // Format the response to match the previous OpenAI format for the frontend
-    let sentimentLabel = "Neutral";
-    if (result.score > 0) sentimentLabel = "Positive";
-    if (result.score < 0) sentimentLabel = "Negative";
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini", // Cost-effective and fast for sentiment
+      messages: [
+        { role: "system", content: ANALYSIS_PROMPT },
+        { role: "user", content: text }
+      ],
+      response_format: { type: "json_object" }
+    });
 
-    // Calculate a pseudo-confidence based on comparative (word intensity)
-    const confidence = Math.min(100, Math.max(50, 50 + Math.abs(result.comparative) * 50));
-    
-    const explanation = `Analyzed ${result.tokens.length} words. Found ${result.positive.length} positive words and ${result.negative.length} negative words.`;
+    const result = JSON.parse(response.choices[0].message.content);
+    res.json(result);
 
-    const formattedResult = `Sentiment: ${sentimentLabel}, Confidence: ${confidence.toFixed(1)}%, Explanation: ${explanation}`;
-
-    res.json({ result: formattedResult });
   } catch (error) {
-    console.error("Error in /analyze:", error);
-    res.status(500).json({ error: "Failed to analyze sentiment" });
-  }
-});
+    console.error("OpenAI Error:", error);
+    
+    // Fallback to basic sentiment analysis if OpenAI fails
+    try {
+      const basicResult = sentiment.analyze(text);
+      let sentimentLabel = "Neutral";
+      if (basicResult.score > 0) sentimentLabel = "Positive";
+      if (basicResult.score < 0) sentimentLabel = "Negative";
 
-// Batch CSV analysis endpoint
-app.post("/analyze/batch", upload.single("file"), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ error: "No CSV file uploaded." });
-  }
-
-  const results = [];
-  let summary = { Positive: 0, Negative: 0, Neutral: 0 };
-
-  try {
-    // Create a readable stream from the uploaded buffer
-    const stream = Readable.from(req.file.buffer.toString('utf-8'));
-
-    stream
-      .pipe(csv())
-      .on("data", (row) => {
-        // Assume the CSV has a column named "text" or "review"
-        const textToAnalyze = row.text || row.review || row.content || row.Message || Object.values(row)[0];
-        
-        if (textToAnalyze) {
-          const analysis = sentiment.analyze(textToAnalyze);
-          
-          let sentimentLabel = "Neutral";
-          if (analysis.score > 0) {
-            sentimentLabel = "Positive";
-            summary.Positive++;
-          } else if (analysis.score < 0) {
-            sentimentLabel = "Negative";
-            summary.Negative++;
-          } else {
-            summary.Neutral++;
-          }
-
-          results.push({
-            text: textToAnalyze.substring(0, 100) + (textToAnalyze.length > 100 ? "..." : ""),
-            sentiment: sentimentLabel,
-            score: analysis.score
-          });
-        }
-      })
-      .on("end", () => {
-        res.json({
-          summary,
-          details: results
-        });
-      })
-      .on("error", (error) => {
-        console.error("CSV Parsing Error:", error);
-        res.status(500).json({ error: "Failed to parse CSV file." });
+      res.json({
+        sentiment_label: sentimentLabel,
+        sentiment_score: basicResult.score / 5, 
+        emotions: [],
+        confidence: 60,
+        key_phrases: basicResult.words,
+        explanation: "Fallback analysis due to API error. " + (error.message || ""),
+        is_fallback: true
       });
-
-  } catch (error) {
-    console.error("Batch processing error:", error);
-    res.status(500).json({ error: "Internal server error during batch processing." });
+    } catch (fallbackError) {
+      res.status(500).json({ error: "Failed to analyze sentiment" });
+    }
   }
 });
 

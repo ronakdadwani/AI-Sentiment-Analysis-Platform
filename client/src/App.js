@@ -23,7 +23,7 @@ function App() {
 
     try {
       const response = await axios.post(`${API_BASE_URL}/analyze`, { text });
-      setResult(response.data.result);
+      setResult(response.data);
     } catch (error) {
       setResult(`Error: ${error.response?.data?.error || error.message}`);
     } finally {
