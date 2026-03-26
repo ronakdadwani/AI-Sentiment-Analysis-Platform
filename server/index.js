@@ -22,7 +22,7 @@ app.use(express.urlencoded({ extended: true, limit: '5mb' }));
 // CORS configuration for production
 const corsOptions = {
   origin: process.env.NODE_ENV === 'production' 
-    ? [process.env.FRONTEND_URL, 'https://yourdomain.com'] 
+    ? [process.env.FRONTEND_URL, 'https://sentiment-analyzer-delta.vercel.app', /\.vercel\.app$/] 
     : 'http://localhost:3000',
   credentials: true,
   optionsSuccessStatus: 200
@@ -137,7 +137,13 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
-});
+// Export the app for Vercel
+module.exports = app;
+
+// Only start the server if this file is run directly (not as a module)
+if (require.main === module) {
+  const PORT = process.env.PORT || 5000;
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
+  });
+}
