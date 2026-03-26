@@ -22,7 +22,7 @@ app.use(express.urlencoded({ extended: true, limit: '5mb' }));
 // CORS configuration for production
 const corsOptions = {
   origin: process.env.NODE_ENV === 'production' 
-    ? [process.env.FRONTEND_URL, 'https://sentiment-analyzer-delta.vercel.app', /\.vercel\.app$/] 
+    ? [process.env.FRONTEND_URL, /\.vercel\.app$/] 
     : 'http://localhost:3000',
   credentials: true,
   optionsSuccessStatus: 200
